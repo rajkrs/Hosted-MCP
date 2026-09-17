@@ -48,6 +48,27 @@ builder.Services
             ValidAudiences = [apiClientId, $"api://{apiClientId}"],
             NameClaimType = "name"
         };
+        // Log the real validation failure reason (and the actual iss/aud claims received)
+        // so token/config mismatches are visible in the console instead of just the generic
+        // "invalid_token" response sent back to the client.
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("JwtBearerDiagnostics")
+                    .LogWarning(context.Exception, "JWT validation failed.");
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                var claims = context.Principal?.Claims.Select(c => $"{c.Type}={c.Value}") ?? [];
+                context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("JwtBearerDiagnostics")
+                    .LogInformation("JWT validated. Claims: {Claims}", string.Join(", ", claims));
+                return Task.CompletedTask;
+            }
+        };
     })
     .AddMcp(options =>
     {
@@ -64,7 +85,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("McpAccess", policy =>
     {
         policy.RequireAuthenticatedUser();
-       // policy.RequireClaim("scp", "Mcp.Access");
+        // policy.RequireClaim("scp", "Mcp.Access");
     });
 
     // Require authentication for every endpoint by default; endpoints that must stay
@@ -85,7 +106,7 @@ builder.Services.AddSwaggerGen(options =>
     options.EnableAnnotations();
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "Government REST and MCP API",
+        Title = "Government REST and MCP API - " + builder.Environment.EnvironmentName,
         Version = "v1",
         Description = """
             This application exposes the same project catalog through two interfaces:
