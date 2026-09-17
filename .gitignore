@@ -1,0 +1,37 @@
+## .NET build output
+[Bb]in/
+[Oo]bj/
+
+## Visual Studio and VS Code
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## NuGet and package artifacts
+packages/
+*.nupkg
+*.snupkg
+
+## ASP.NET Core local settings and secrets
+appsettings.*.local.json
+secrets.json
+
+## Test and coverage output
+TestResults/
+coverage/
+coverage.*
+
+## OS files
+.DS_Store
+Thumbs.db
+
+## Local environment files
+.env
+.env.*
+!.env.example

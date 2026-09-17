@@ -1,0 +1,55 @@
+@Gov_WebApi_HostAddress = http://localhost:5049
+
+# Entra ID app registrations (created for OAuth-secured testing):
+#   API app (exposes scope):  560b8b70-4f6f-4b63-8bc5-a5980b9a3db5  (api://560b8b70-4f6f-4b63-8bc5-a5980b9a3db5)
+#   Client app (calls API):   dacb53be-6a39-4918-b5a1-b994a625252e  (public client, redirect http://localhost)
+#   Scope:                    api://560b8b70-4f6f-4b63-8bc5-a5980b9a3db5/Mcp.Access
+#   Tenant:                   2d71cc54-bc9e-4518-aebc-618c6aa63f9a
+#
+# Get a token (device code flow) with the Azure CLI, then paste it into @token below:
+#   az login --tenant 2d71cc54-bc9e-4518-aebc-618c6aa63f9a --allow-no-subscriptions --use-device-code
+#   az account get-access-token --scope "api://560b8b70-4f6f-4b63-8bc5-a5980b9a3db5/Mcp.Access" --query accessToken -o tsv
+#
+# ---------------------------------------------------------------------------------
+# Testing with a NEW app registration in a DIFFERENT tenant that has no exposed
+# scope yet (nothing added under "Expose an API"):
+#   1. Set Gov.WebApi/appsettings.Development.json -> Authentication:TenantId /
+#      Authentication:ApiClientId to the new tenant/app IDs (this file overrides
+#      appsettings.json when running locally, ASPNETCORE_ENVIRONMENT=Development).
+#   2. Because no scope is exposed, request a plain v1-style token for the app
+#      itself using --resource instead of --scope (no "api://" App ID URI needed):
+#        az login --tenant <NEW_TENANT_ID> --allow-no-subscriptions --use-device-code
+#        az account get-access-token --resource <NEW_APP_CLIENT_ID> --query accessToken -o tsv
+#   3. Program.cs now accepts both v2.0 tokens (aud=api://ClientId, iss=.../v2.0) and
+#      v1.0 tokens obtained this way (aud=ClientId, iss=https://sts.windows.net/TENANT/),
+#      and the McpAccess policy only requires an authenticated user (no scp check), so
+#      this works even though no Mcp.Access scope has been defined.
+# ---------------------------------------------------------------------------------
+@token = PASTE_ACCESS_TOKEN_HERE
+
+### Health check (public, no auth required)
+GET {{Gov_WebApi_HostAddress}}/health
+Accept: application/json
+
+### Get projects (REST API, requires OAuth bearer token + Mcp.Access scope)
+GET {{Gov_WebApi_HostAddress}}/api/project
+Accept: application/json
+Authorization: Bearer {{token}}
+
+### MCP endpoint (requires OAuth bearer token + Mcp.Access scope)
+POST {{Gov_WebApi_HostAddress}}/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+Authorization: Bearer {{token}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list"
+}
+
+### Swagger UI docs (public)
+GET {{Gov_WebApi_HostAddress}}/docs
+
+### ReDoc reference (public)
+GET {{Gov_WebApi_HostAddress}}/reference
