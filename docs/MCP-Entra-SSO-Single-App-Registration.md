@@ -43,8 +43,8 @@ Only one app registration is created:
 For this workspace, the values currently in use are:
 
 ```text
-TENANT_ID    = 0fec8578-a553-4c8f-839b-a6d83f5932a3
-APP_CLIENT_ID = 24dc1840-872b-4688-b98d-ce89ddf0032f
+TENANT_ID    = xxxxxxxxxxxxxxxx-a6d83f5932a3
+APP_CLIENT_ID = xxxxxxxxxxxxxx-ce89ddf0032f
 ```
 
 This is the working single-registration configuration for the current implementation. Do not put client secrets in this application or in `.vscode/mcp.json`.
@@ -154,26 +154,7 @@ Update `.vscode/mcp.json` so `oauth.clientId` is the **same** client ID used by 
   "servers": {
     "gov-projects": {
       "type": "http",
-      "url": "https://APP_SERVICE_HOSTNAME/mcp",
-      "oauth": {
-        "clientId": "APP_CLIENT_ID"
-      }
-    }
-  }
-}
-```
-
-For the current deployment, the working configuration is:
-
-```json
-{
-  "servers": {
-    "gov-projects": {
-      "type": "http",
-      "url": "https://rtest-mcp-web-api-btb9cghwhxghb9bg.westus3-01.azurewebsites.net/mcp",
-      "oauth": {
-        "clientId": "24dc1840-872b-4688-b98d-ce89ddf0032f"
-      }
+      "url": "https://rtest-mcp-web-api-345345435435435435.westus3-01.azurewebsites.net/mcp"
     }
   }
 }
