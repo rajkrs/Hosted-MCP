@@ -2,6 +2,7 @@ using Gov.WebApi.Services;
 using Gov.WebApi.Tools;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using ModelContextProtocol.AspNetCore;
@@ -14,9 +15,13 @@ var tenantId = builder.Configuration["Authentication:TenantId"]
     ?? throw new InvalidOperationException("Authentication:TenantId is required.");
 var apiClientId = builder.Configuration["Authentication:ApiClientId"]
     ?? throw new InvalidOperationException("Authentication:ApiClientId is required.");
+var clientAppId = builder.Configuration["Authentication:ClientAppId"];
+var interactiveClientId = string.IsNullOrWhiteSpace(clientAppId) ? apiClientId : clientAppId;
 var authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
+var authorizationEndpoint = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/authorize";
 var oauthResource = $"api://{apiClientId}";
 var mcpScope = $"{oauthResource}/Mcp.Access";
+var defaultAuthorizeScope = $"{mcpScope} openid profile offline_access";
 var publicBaseUrl = builder.Configuration["PublicBaseUrl"]?.TrimEnd('/')
     ?? throw new InvalidOperationException("PublicBaseUrl is required.");
 
@@ -77,7 +82,7 @@ builder.Services
             Resource = oauthResource,
             ResourceDocumentation = $"{publicBaseUrl}/docs",
             AuthorizationServers = { authority },
-            //ScopesSupported = { mcpScope }
+            ScopesSupported = { mcpScope }
         };
     });
 builder.Services.AddAuthorization(options =>
@@ -85,7 +90,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("McpAccess", policy =>
     {
         policy.RequireAuthenticatedUser();
-        // policy.RequireClaim("scp", "Mcp.Access");
+        policy.RequireClaim("scp", "Mcp.Access");
     });
 
     // Require authentication for every endpoint by default; endpoints that must stay
@@ -152,6 +157,40 @@ app.UseReDoc(options =>
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapGet("/authorize", (HttpContext context) =>
+{
+    var queryBuilder = new QueryBuilder();
+    foreach (var (key, values) in context.Request.Query)
+    {
+        if (string.Equals(key, "scope", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "client_id", StringComparison.OrdinalIgnoreCase))
+        {
+            continue;
+        }
+
+        foreach (var value in values)
+        {
+            queryBuilder.Add(key, value ?? string.Empty);
+        }
+    }
+
+    var scope = context.Request.Query.TryGetValue("scope", out var requestedScope) && !string.IsNullOrWhiteSpace(requestedScope)
+        ? requestedScope.ToString()
+        : defaultAuthorizeScope;
+    var requestedClientId = context.Request.Query.TryGetValue("client_id", out var clientId)
+        ? clientId.ToString()
+        : null;
+    var effectiveClientId = string.IsNullOrWhiteSpace(requestedClientId)
+        || string.Equals(requestedClientId, tenantId, StringComparison.OrdinalIgnoreCase)
+        ? interactiveClientId
+        : requestedClientId;
+
+    queryBuilder.Add("client_id", effectiveClientId);
+    queryBuilder.Add("scope", scope);
+    return Results.Redirect($"{authorizationEndpoint}{queryBuilder.ToQueryString()}", permanent: false);
+})
+    .ExcludeFromDescription()
+    .AllowAnonymous();
 app.MapGet("/", () => Results.Redirect("/docs"))
     .ExcludeFromDescription()
     .AllowAnonymous();
