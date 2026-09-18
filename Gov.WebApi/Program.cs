@@ -15,15 +15,15 @@ var tenantId = builder.Configuration["Authentication:TenantId"]
     ?? throw new InvalidOperationException("Authentication:TenantId is required.");
 var apiClientId = builder.Configuration["Authentication:ApiClientId"]
     ?? throw new InvalidOperationException("Authentication:ApiClientId is required.");
-var clientAppId = builder.Configuration["Authentication:ClientAppId"];
-var interactiveClientId = string.IsNullOrWhiteSpace(clientAppId) ? apiClientId : clientAppId;
+var clientAppId = builder.Configuration["Authentication:ClientAppId"]?.Trim();
 var authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
 var authorizationEndpoint = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/authorize";
-var oauthResource = $"api://{apiClientId}";
+var oauthResource = apiClientId;
 var mcpScope = $"{oauthResource}/Mcp.Access";
 var defaultAuthorizeScope = $"{mcpScope} openid profile offline_access";
 var publicBaseUrl = builder.Configuration["PublicBaseUrl"]?.TrimEnd('/')
     ?? throw new InvalidOperationException("PublicBaseUrl is required.");
+var protectedResource = publicBaseUrl;
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -79,7 +79,7 @@ builder.Services
     {
         options.ResourceMetadata = new()
         {
-            Resource = oauthResource,
+            Resource = protectedResource,
             ResourceDocumentation = $"{publicBaseUrl}/docs",
             AuthorizationServers = { authority },
             ScopesSupported = { mcpScope }
@@ -90,7 +90,6 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("McpAccess", policy =>
     {
         policy.RequireAuthenticatedUser();
-        policy.RequireClaim("scp", "Mcp.Access");
     });
 
     // Require authentication for every endpoint by default; endpoints that must stay
@@ -159,6 +158,15 @@ app.UseAuthorization();
 
 app.MapGet("/authorize", (HttpContext context) =>
 {
+    if (!string.IsNullOrWhiteSpace(clientAppId)
+        && string.Equals(clientAppId, apiClientId, StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.Problem(
+            title: "Invalid authentication configuration",
+            detail: "Authentication:ClientAppId cannot match Authentication:ApiClientId.",
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
+
     var queryBuilder = new QueryBuilder();
     foreach (var (key, values) in context.Request.Query)
     {
@@ -180,10 +188,29 @@ app.MapGet("/authorize", (HttpContext context) =>
     var requestedClientId = context.Request.Query.TryGetValue("client_id", out var clientId)
         ? clientId.ToString()
         : null;
-    var effectiveClientId = string.IsNullOrWhiteSpace(requestedClientId)
-        || string.Equals(requestedClientId, tenantId, StringComparison.OrdinalIgnoreCase)
-        ? interactiveClientId
-        : requestedClientId;
+    var effectiveClientId = requestedClientId;
+
+    if (string.IsNullOrWhiteSpace(effectiveClientId)
+        || string.Equals(effectiveClientId, tenantId, StringComparison.OrdinalIgnoreCase))
+    {
+        effectiveClientId = clientAppId;
+    }
+
+    if (string.IsNullOrWhiteSpace(effectiveClientId))
+    {
+        return Results.Problem(
+            title: "Missing OAuth client id",
+            detail: "Provide a client_id from the MCP client, or configure Authentication:ClientAppId as an optional override.",
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
+
+    if (string.Equals(effectiveClientId, apiClientId, StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.Problem(
+            title: "Invalid OAuth client id",
+            detail: "The API app registration cannot be used as the OAuth client for this Entra scope-based flow. Use the MCP client's client_id, or configure Authentication:ClientAppId with a different public client app.",
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
 
     queryBuilder.Add("client_id", effectiveClientId);
     queryBuilder.Add("scope", scope);

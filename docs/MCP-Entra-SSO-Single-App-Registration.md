@@ -1,11 +1,13 @@
 # Hosted MCP with One Microsoft Entra App Registration
 
-This guide configures the hosted MCP endpoint with **one** Microsoft Entra app registration. The same registration acts as:
+This guide reflects the current working setup in this repo: the hosted MCP endpoint is configured with **one** Microsoft Entra app registration, and that single-registration configuration is working successfully.
+
+The same registration acts as:
 
 - The protected API that exposes the `Mcp.Access` delegated scope.
 - The public client used by VS Code to sign in with authorization code flow and PKCE.
 
-This is suitable for an internal POC or a small single-client deployment. Use separate API and client registrations when multiple clients, independent client lifecycle, or stricter separation of responsibilities is required.
+This is the verified pattern for this project. Separate API and client registrations are not required for the current POC and are only needed when you intentionally want stricter separation between resource and client identities.
 
 ## Target architecture
 
@@ -38,14 +40,14 @@ Only one app registration is created:
 7. Copy the **Application (client) ID**. This value is called `APP_CLIENT_ID` below.
 8. Copy the **Directory (tenant) ID**. This value is called `TENANT_ID` below.
 
-For the existing workspace, the values are currently:
+For this workspace, the values currently in use are:
 
 ```text
-TENANT_ID    = 2d71cc54-bc9e-4518-aebc-618c6aa63f9a
-APP_CLIENT_ID = 4607dd35-d940-4d77-af36-748b833504f1
+TENANT_ID    = 0fec8578-a553-4c8f-839b-a6d83f5932a3
+APP_CLIENT_ID = 24dc1840-872b-4688-b98d-ce89ddf0032f
 ```
 
-Use your own values when creating a new registration. Do not put client secrets in this application or in `.vscode/mcp.json`.
+This is the working single-registration configuration for the current implementation. Do not put client secrets in this application or in `.vscode/mcp.json`.
 
 ## 2. Expose the MCP API scope
 
@@ -161,7 +163,7 @@ Update `.vscode/mcp.json` so `oauth.clientId` is the **same** client ID used by 
 }
 ```
 
-For the existing deployment, the effective configuration is:
+For the current deployment, the working configuration is:
 
 ```json
 {
@@ -170,14 +172,14 @@ For the existing deployment, the effective configuration is:
       "type": "http",
       "url": "https://rtest-mcp-web-api-btb9cghwhxghb9bg.westus3-01.azurewebsites.net/mcp",
       "oauth": {
-        "clientId": "4607dd35-d940-4d77-af36-748b833504f1"
+        "clientId": "24dc1840-872b-4688-b98d-ce89ddf0032f"
       }
     }
   }
 }
 ```
 
-The previous separate VS Code client ID must not be used in this one-registration configuration.
+This is the verified single-registration setup used in the current working environment.
 
 ## 7. Publish and deploy
 
